@@ -3,6 +3,13 @@ from textual.reactive import reactive
 from iter_ation.monitoring.thresholds import AlertLevel
 from iter_ation.tui.theme import COLORS
 
+_LEVEL_COLORS = {
+    AlertLevel.NOMINAL: COLORS["nominal"],
+    AlertLevel.WARNING: COLORS["warning"],
+    AlertLevel.DANGER: COLORS["danger"],
+    AlertLevel.DISRUPTION: COLORS["disruption"],
+}
+
 
 class Gauge(Widget):
     """Horizontal gauge bar for a single plasma parameter."""
@@ -11,6 +18,7 @@ class Gauge(Widget):
     Gauge {
         height: 1;
         width: 1fr;
+        padding: 0 1;
     }
     """
 
@@ -28,16 +36,16 @@ class Gauge(Widget):
         self._max_val = max_val
 
     def render(self) -> str:
-        width = max(self.size.width - 22, 5)
+        # Reserve space for label (6) + value (8) + spacing (4)
+        bar_width = max(self.size.width - 18, 3)
         fill_ratio = (self.value - self._min_val) / max(self._max_val - self._min_val, 1e-9)
         fill_ratio = max(0.0, min(1.0, fill_ratio))
-        filled = int(width * fill_ratio)
-        empty = width - filled
+        filled = int(bar_width * fill_ratio)
+        empty = bar_width - filled
 
-        color = COLORS.get(self.alert_level.name.lower(), COLORS["nominal"])
-        bar = f"[{color}]{'█' * filled}[/]{'░' * empty}"
-        unit_str = f" {self._unit}" if self._unit else ""
-        return f" {self._label:<8} {bar} {self.value:>8.3f}{unit_str}"
+        color = _LEVEL_COLORS.get(self.alert_level, COLORS["nominal"])
+        bar = f"[{color}]{'█' * filled}[/][dim]{'░' * empty}[/]"
+        return f"{self._label:<6}{bar} [{color}]{self.value:>7.3f}[/]"
 
     def update_value(self, value: float, level: AlertLevel) -> None:
         self.value = value

@@ -89,12 +89,8 @@ class IterApp(App):
     def on_mount(self) -> None:
         timeline = self.query_one("#timeline", TimelineWidget)
         timeline.add_series("greenwald_fraction")
-        timeline.add_series("radiated_fraction")
-        timeline.add_series("q95")
-
-        # Add threshold lines for fGW
-        timeline.add_threshold(0.85, "yellow", "fGW WARNING")
-        timeline.add_threshold(1.0, "red", "fGW DANGER")
+        timeline.add_threshold(0.85, "yellow", "WARNING 0.85")
+        timeline.add_threshold(1.0, "red", "DANGER 1.0")
 
         self.query_one("#controls", ControlsBar).interactive_mode = self._interactive
         self._run_simulation()

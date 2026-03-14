@@ -19,6 +19,9 @@ class AlertLogWidget(RichLog):
     }
     """
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(markup=True, **kwargs)
+
     def add_alert(self, entry: AlertEntry) -> None:
         icon = _LEVEL_ICONS.get(entry.level, "")
-        self.write(f"{icon} [{COLORS['text_dim']}]t={entry.sim_time:.3f}s[/] {entry.message}")
+        self.write(f"{icon} [dim]t={entry.sim_time:.3f}s[/] {entry.message}")

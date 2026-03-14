@@ -8,7 +8,11 @@ import plotext as plt
 
 
 class TimelineWidget(Widget):
-    """Scrolling time series plot using plotext with threshold lines."""
+    """Scrolling time series plot using plotext with threshold lines.
+
+    Only plots greenwald_fraction (the central metric) to keep the
+    y-axis readable. Threshold lines show WARNING and DANGER levels.
+    """
 
     DEFAULT_CSS = """
     TimelineWidget {
@@ -26,14 +30,13 @@ class TimelineWidget(Widget):
         self._times: deque[float] = deque(maxlen=max_points)
         self._decoder = AnsiDecoder()
         self._pulse_markers: list[float] = []
-        self._thresholds: list[tuple[float, str, str]] = []  # (value, color, label)
+        self._thresholds: list[tuple[float, str, str]] = []
 
     def add_series(self, name: str) -> None:
         if name not in self._series:
             self._series[name] = deque(maxlen=self._max_points)
 
     def add_threshold(self, value: float, color: str, label: str) -> None:
-        """Add a horizontal threshold line to the plot."""
         self._thresholds.append((value, color, label))
 
     def push(self, sim_time: float, values: dict[str, float]) -> None:
@@ -54,13 +57,15 @@ class TimelineWidget(Widget):
         plt.plotsize(self.size.width, self.size.height - 1)
         plt.xaxes(1, 0)
         plt.yaxes(1, 0)
-        plt.title("Plasma Timeline")
+        plt.title("Greenwald Fraction (fGW)")
+        plt.ylim(0.0, 1.3)
 
         times = list(self._times)
-        colors = ["cyan+", "yellow+", "red+", "green+", "magenta+"]
-        for i, (name, series) in enumerate(self._series.items()):
-            data = list(series)
-            plt.plot(times[:len(data)], data, label=name, color=colors[i % len(colors)])
+
+        # Plot only fGW as the hero metric
+        if "greenwald_fraction" in self._series:
+            data = list(self._series["greenwald_fraction"])
+            plt.plot(times[:len(data)], data, label="fGW", color="cyan+")
 
         # Threshold lines
         for value, color, label in self._thresholds:
