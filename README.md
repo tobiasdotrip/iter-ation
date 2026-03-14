@@ -2,7 +2,7 @@
 
 **ITER-ation** is an AI-powered disruption monitor for nuclear fusion reactors. It simulates and monitors the plasma inside a Tokamak in real time, using **Google Gemini** as an autonomous operator to prevent disruptions.
 
-Built during the **Google Antigravity Hackathon**.
+Built during the **Google Gemini Hackathon**.
 
 ## The Problem
 
