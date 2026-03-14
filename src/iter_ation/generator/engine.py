@@ -16,12 +16,18 @@ DT = 0.001  # 1 ms
 
 # Density pressure episodes: (start_time_s, duration_s, intensity)
 # intensity = n_e increase rate per second
+# Each episode pushes fGW toward disruption. The AI must counteract every time.
+# Without AI intervention, each episode alone can cause a disruption.
 _PRESSURE_EPISODES = [
-    (20.0, 15.0, 0.015),   # gentle pressure at t=20s
-    (50.0, 20.0, 0.020),   # moderate at t=50s
-    (90.0, 15.0, 0.025),   # stronger at t=90s
-    (120.0, 20.0, 0.018),  # another moderate
-    (155.0, 25.0, 0.030),  # intense — will disrupt if uncorrected
+    (15.0,  12.0, 0.025),   # Episode 1: moderate, fGW → ~0.90
+    (35.0,  15.0, 0.030),   # Episode 2: stronger, fGW → ~0.95+
+    (60.0,  10.0, 0.035),   # Episode 3: fast spike
+    (80.0,  18.0, 0.028),   # Episode 4: sustained pressure
+    (110.0, 12.0, 0.040),   # Episode 5: intense, will disrupt if uncorrected
+    (135.0, 15.0, 0.032),   # Episode 6: another strong push
+    (160.0, 20.0, 0.045),   # Episode 7: very intense, hard to survive
+    (190.0, 15.0, 0.038),   # Episode 8: keeps going
+    (220.0, 25.0, 0.050),   # Episode 9: final escalation
 ]
 
 
@@ -67,8 +73,8 @@ class SimulationEngine:
         so it accumulates if uncorrected.
         """
         if self._episode_index >= len(_PRESSURE_EPISODES):
-            # After all episodes, continuous slow pressure
-            self._base["n_e"] += 0.008 * DT
+            # After all episodes, continuous moderate pressure — never safe
+            self._base["n_e"] += 0.020 * DT
             return
 
         start, duration, intensity = _PRESSURE_EPISODES[self._episode_index]
