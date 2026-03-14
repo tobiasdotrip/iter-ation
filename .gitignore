@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+long_pulse_iter.csv
+long_pulse_tokamak.csv
