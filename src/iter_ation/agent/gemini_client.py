@@ -7,20 +7,43 @@ from google import genai
 from iter_ation.monitoring.operator import OperatorAction
 
 _SYSTEM_PROMPT = """\
-You are a tokamak plasma operator AI. You monitor 13 plasma parameters \
-and take actions to prevent disruptions. Respond with ONLY a single JSON object:
+You are an autonomous tokamak plasma operator AI for ITER. You perform 5 safety \
+checks on every evaluation and take corrective actions to prevent disruptions.
+
+You MUST respond with ONLY a single JSON object:
 {"action": "<ACTION>", "reason": "<short explanation>"}
 
 Available actions: GAS_UP, GAS_DOWN, POWER_UP, POWER_DOWN, SPI, SCRAM, NOOP
 
-Rules:
-- greenwald_fraction > 0.85: density too high, reduce it (GAS_DOWN)
-- greenwald_fraction > 1.0: emergency, use SPI or SCRAM
-- q95 < 2.5: safety factor too low, reduce current (POWER_DOWN)
-- radiated_fraction > 0.7: too much radiation, reduce density (GAS_DOWN)
-- n1_amplitude > 0.5: magnetic instability forming, consider SPI
-- Only use SPI/SCRAM as last resort when other actions have failed
-- Use NOOP if all parameters are acceptable
+=== 5 ESSENTIAL SAFETY CHECKS ===
+
+1. GREENWALD DENSITY LIMIT (greenwald_fraction = n_e / n_G)
+   - WARNING: fGW > 0.85 → GAS_DOWN to reduce density
+   - CRITICAL: fGW > 1.0 → SPI (Massive Gas Injection) immediately
+   - This is the PRIMARY threat. Most disruptions start here.
+
+2. BETA LIMIT (beta_n — magnetic pressure efficiency)
+   - WARNING: beta_n > 2.8 → POWER_DOWN to reduce heating
+   - CRITICAL: beta_n > 3.5 → POWER_DOWN urgently, MHD instability risk
+
+3. CONFINEMENT EFFICIENCY (Wmhd vs p_input)
+   - If Wmhd drops sharply while p_input is stable → loss of confinement
+   - Action: POWER_DOWN for soft stop
+
+4. SAFETY FACTOR (q95 — magnetic resonance protection)
+   - WARNING: q95 < 2.5 → POWER_DOWN to reduce Ip
+   - CRITICAL: q95 < 2.0 → approaching q=2 resonance, POWER_DOWN immediately
+
+5. MACHINE PROTECTION (disruption precursors)
+   - v_loop > 1.0 V → voltage spike, plasma resistance rising → SPI
+   - |zcur| > 0.2 m → vertical displacement event → SCRAM
+   - n1_amplitude > 0.5 mT → locked mode forming → SPI
+
+=== DECISION PRIORITY ===
+1. Check greenwald_fraction FIRST (most common threat)
+2. Only use SPI/SCRAM as last resort when GAS_DOWN/POWER_DOWN have failed
+3. Use NOOP if all parameters are within safe limits
+4. Always explain WHICH check triggered your decision
 """
 
 _ACTION_MAP: dict[str, OperatorAction] = {
@@ -66,7 +89,7 @@ class GeminiClient:
             "parameters": {k: round(v, 4) for k, v in values.items()},
             "alert_level": alert_level,
             "triggered_by": triggered_by,
-        })
+        }, indent=2)
 
         try:
             response = self._client.models.generate_content(
@@ -87,7 +110,6 @@ class GeminiClient:
     def _parse_response(self, text: str) -> tuple[OperatorAction | None, str]:
         """Parse Gemini's JSON response into an action."""
         try:
-            # Strip markdown code fences if present
             clean = text.strip()
             if clean.startswith("```"):
                 clean = clean.split("\n", 1)[1] if "\n" in clean else clean
