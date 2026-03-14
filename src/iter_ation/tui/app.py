@@ -173,7 +173,7 @@ class IterApp(App):
 
         def _call():
             try:
-                action, reason = self._operator_ai.evaluate(
+                action, intensity, reason = self._operator_ai.evaluate(
                     values=values,
                     alert_level=alert_level,
                     param_levels=param_levels,
@@ -181,20 +181,54 @@ class IterApp(App):
                 )
                 if reason:
                     if action is not None:
-                        self._action_queue.put(action)
-                    # Use call_from_thread to safely update UI from daemon thread
-                    self.call_from_thread(self._display_ai_decision, action, reason, sim_time)
+                        self._apply_ai_action(action, intensity)
+                    self.call_from_thread(
+                        self._display_ai_decision, action, intensity, reason, sim_time
+                    )
             finally:
                 self._ai_call_lock.release()
 
         thread = threading.Thread(target=_call, daemon=True)
         thread.start()
 
-    def _display_ai_decision(self, action: OperatorAction | None, reason: str, sim_time: float) -> None:
+    def _apply_ai_action(self, action: OperatorAction, intensity: float) -> None:
+        """Apply an AI action with variable intensity.
+
+        intensity (0.0-1.0) scales the effect:
+        - GAS_DOWN at 0.2 → n_e -= 0.02, at 1.0 → n_e -= 0.15
+        - POWER_DOWN at 0.3 → p_input -= 1.5, at 1.0 → p_input -= 10
+        """
+        engine = self._engine
+        intensity = max(0.1, min(1.0, intensity))
+
+        if action == OperatorAction.GAS_DOWN:
+            delta = -0.15 * intensity  # 0.015 to 0.15
+            engine.apply_operator_adjustment("n_e", delta)
+        elif action == OperatorAction.GAS_UP:
+            delta = 0.10 * intensity
+            engine.apply_operator_adjustment("n_e", delta)
+        elif action == OperatorAction.POWER_DOWN:
+            delta = -10.0 * intensity
+            engine.apply_operator_adjustment("p_input", delta)
+        elif action == OperatorAction.POWER_UP:
+            delta = 5.0 * intensity
+            engine.apply_operator_adjustment("p_input", delta)
+        elif action == OperatorAction.SPI:
+            engine.apply_operator_adjustment("n_e", engine.current_state.n_e * 2)
+            engine.apply_operator_adjustment("Te_core", -engine.current_state.Te_core * 0.8)
+            engine.apply_operator_adjustment("radiated_fraction", 0.45)
+            engine.apply_operator_adjustment("v_loop", 1.5)
+        elif action == OperatorAction.SCRAM:
+            engine.apply_operator_adjustment("Ip", -engine.current_state.Ip * 0.95)
+
+    def _display_ai_decision(
+        self, action: OperatorAction | None, intensity: float, reason: str, sim_time: float,
+    ) -> None:
         """Update AI panel from the main thread."""
         ai_panel = self.query_one("#ai-log", AIPanel)
         if action is not None:
-            ai_panel.log_action(sim_time, action.value.upper(), reason)
+            pct = int(intensity * 100)
+            ai_panel.log_action(sim_time, f"{action.value.upper()} [{pct}%]", reason)
         else:
             ai_panel.write(f"[dim]t={sim_time:.3f}s[/] [dim]{reason}[/]")
 
