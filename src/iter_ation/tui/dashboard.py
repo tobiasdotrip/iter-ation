@@ -14,7 +14,9 @@ class Dashboard(Static):
     DEFAULT_CSS = """
     Dashboard { height: 1fr; width: 1fr; }
     #main-area { height: 1fr; }
-    #timeline { width: 1fr; min-width: 40; }
+    #left-graphs { width: 1fr; min-width: 40; }
+    #timeline { height: 2fr; }
+    #profile-plot { height: 1fr; min-height: 10; }
     #right-panel { width: 38; min-width: 38; }
     #key-metrics { height: auto; padding: 0 1; }
     #params-scroll { height: 1fr; }
@@ -25,14 +27,16 @@ class Dashboard(Static):
     """
 
     def compose(self) -> ComposeResult:
-        # Main area: timeline left, panels right
         with Horizontal(id="main-area"):
-            yield TimelineWidget(id="timeline")
+            # Left: timeline + radial profile stacked
+            with Vertical(id="left-graphs"):
+                yield TimelineWidget(id="timeline")
+                yield ProfilePlot(id="profile-plot")
 
+            # Right: gauges + param sections + plasma profile values
             with Vertical(id="right-panel"):
-                # Key metrics with gauges
                 yield Static(
-                    f"[bold #00b4d8]── KEY METRICS ──[/]",
+                    "[bold #00b4d8]── KEY METRICS ──[/]",
                     classes="section-title",
                 )
                 with Vertical(id="key-metrics"):
@@ -52,7 +56,6 @@ class Dashboard(Static):
                         id="gauge-q95",
                     )
 
-                # Parameter sections
                 with Vertical(id="params-scroll"):
                     yield ParamSection(
                         title="DENSITY",
@@ -89,9 +92,8 @@ class Dashboard(Static):
                         id="section-position",
                     )
                     yield PlasmaProfile(id="plasma-profile")
-                    yield ProfilePlot(id="profile-plot")
 
-        # Bottom area: alerts + AI panel side by side
+        # Bottom: alerts + AI side by side
         with Horizontal(id="bottom-area"):
             with Vertical(id="alerts-panel"):
                 yield Static("[bold #00b4d8]── ALERTS ──[/]", classes="section-title")

@@ -14,9 +14,8 @@ class ProfilePlot(Widget):
 
     DEFAULT_CSS = """
     ProfilePlot {
-        height: 12;
+        height: 1fr;
         width: 1fr;
-        padding: 0 1;
     }
     """
 
