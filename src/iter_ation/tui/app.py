@@ -22,6 +22,7 @@ from iter_ation.tui.widgets.ai_panel import AIPanel
 from iter_ation.tui.widgets.controls import ControlsBar
 from iter_ation.tui.widgets.param_section import ParamSection
 from iter_ation.tui.widgets.plasma_profile import PlasmaProfile
+from iter_ation.tui.widgets.profile_plot import ProfilePlot
 from iter_ation.tui.theme import COLORS
 
 _STATUS_DISPLAY = {
@@ -271,6 +272,16 @@ class IterApp(App):
         # Plasma profile (derived quantities)
         try:
             self.query_one("#plasma-profile", PlasmaProfile).update_from_state(event.values)
+        except Exception:
+            pass
+
+        # Radial profile plot (deforms with li)
+        try:
+            self.query_one("#profile-plot", ProfilePlot).update_params(
+                n_e=event.values.get("n_e", 0.9),
+                Te_core=event.values.get("Te_core", 20.0),
+                li=event.values.get("li", 0.85),
+            )
         except Exception:
             pass
 
