@@ -14,6 +14,16 @@ Dashboard temps réel affichant des données synthétiques réalistes de paramè
 - numpy (génération de données)
 - Packaging : pyproject.toml, entry point CLI
 
+## Constantes machine ITER
+
+| Constante | Valeur | Description |
+|---|---|---|
+| `R_0` | 6.2 m | Rayon majeur |
+| `a` | 2.0 m | Rayon mineur |
+| `B_T` | 5.3 T | Champ toroïdal |
+| `kappa` | 1.7 | Élongation |
+| `V_plasma` | 830 m³ | Volume plasma |
+
 ## Architecture — 4 couches
 
 ```
@@ -22,33 +32,44 @@ CLI → TUI (Textual) → Monitoring (seuils, alertes, actions) → Generator (e
 
 Chaque couche communique vers le bas via des interfaces claires. Le générateur peut tourner sans le TUI (tests, debug).
 
+### Communication inter-couches
+
+- Le générateur tourne dans un **Worker Textual** (thread dédié)
+- À chaque tick, il produit un `PlasmaState` (dataclass frozen) posté via `post_message`
+- Les actions opérateur sont envoyées au générateur via une `queue.Queue` thread-safe
+- `PlasmaState` contient les 13 valeurs + timestamp simulé + niveau d'alerte courant
+
 ## Paramètres monitorés (13)
 
 Focus sur la **Greenwald fraction** comme métrique centrale.
 
 | # | Paramètre | Unité | Valeur nominale ITER | Seuil de risque | Seuil critique |
 |---|---|---|---|---|---|
-| 1 | `greenwald_fraction` | sans dim. | 0.84 | > 0.8 | > 1.0 |
-| 2 | `n_e` (densité électronique) | 10²⁰ m⁻³ | 1.0 | — | — |
-| 3 | `Ip` (courant plasma) | MA | 15 | — | chute > 20% |
-| 4 | `q95` (facteur de sécurité) | sans dim. | 3.1 | < 2.5 | < 2.0 |
-| 5 | `Te_core` (température coeur) | keV | 20 | chute > 30% | chute > 50% |
-| 6 | `Wmhd` (énergie stockée) | MJ | 350 | — | chute rapide |
-| 7 | `radiated_fraction` | sans dim. | 0.5 | > 0.7 | > 0.9 |
-| 8 | `li` (inductance interne) | sans dim. | 0.85 | > 1.2 | > 1.4 |
-| 9 | `n1_amplitude` (mode n=1) | mT | 0.05 | > 0.5 | > 1.0 |
-| 10 | `v_loop` (tension de boucle) | V | 0.2 | — | spike > 1.0 |
-| 11 | `beta_n` (beta normalisé) | sans dim. | 1.8 | > 2.8 | > 3.5 |
-| 12 | `zcur` (position verticale) | m | 0.0 | > 0.1 | > 0.2 |
-| 13 | `p_input` (puissance injectée) | MW | 50 | chute > 30% | chute > 50% |
+| # | Paramètre | Unité | Nominal | Seuil risque | Seuil critique | Bruit σ (%) |
+|---|---|---|---|---|---|---|
+| 1 | `greenwald_fraction` | sans dim. | 0.75 | > 0.85 | > 1.0 | dérivé |
+| 2 | `n_e` (densité électronique) | 10²⁰ m⁻³ | 0.9 | — | — | 0.5 |
+| 3 | `Ip` (courant plasma) | MA | 15 | — | chute > 20% vs nominal | 0.1 |
+| 4 | `q95` (facteur de sécurité) | sans dim. | 3.1 | < 2.5 | < 2.0 | dérivé |
+| 5 | `Te_core` (température coeur) | keV | 20 | chute > 30% vs nominal | chute > 50% vs nominal | 1.0 |
+| 6 | `Wmhd` (énergie stockée) | MJ | 350 | chute > 20% vs nominal | chute > 40% en < 5 ms | 0.5 |
+| 7 | `radiated_fraction` | sans dim. | 0.5 | > 0.7 | > 0.9 | 1.0 |
+| 8 | `li` (inductance interne) | sans dim. | 0.85 | > 1.2 | > 1.4 | 0.3 |
+| 9 | `n1_amplitude` (mode n=1) | mT | 0.05 | > 0.5 | > 1.0 | 2.0 |
+| 10 | `v_loop` (tension de boucle) | V | 0.2 | — | spike > 1.0 | 0.5 |
+| 11 | `beta_n` (beta normalisé) | sans dim. | 1.8 | > 2.8 | > 3.5 | dérivé |
+| 12 | `zcur` (position verticale) | m | 0.0 | |z| > 0.1 | |z| > 0.2 | 0.2 |
+| 13 | `p_input` (puissance injectée) | MW | 50 | chute > 30% vs nominal | chute > 50% vs nominal | 0.1 |
+
+Les seuils "chute > X% vs nominal" comparent la valeur courante à la valeur nominale du paramètre (colonne "Nominal").
 
 ### Formules clés
 
 > **TODO (à vérifier)** : les valeurs nominales et seuils ci-dessus sont des approximations basées sur la documentation ITER publique. À revalider par l'utilisateur.
 
-- Greenwald density : `n_G [10²⁰ m⁻³] = Ip [MA] / (π × a² [m²])`, a = 2.0 m pour ITER
-- Beta normalisé : `β_n = β_T × a × B_T / Ip`
-- Facteur de sécurité (simplifié) : `q95 ∝ (5 × a² × B_T) / (R₀ × Ip)`
+- Greenwald density : `n_G [10²⁰ m⁻³] = Ip [MA] / (π × a² [m²])`
+- Beta normalisé : généré directement avec bruit + drift (la formule `β_n = β_T × a × B_T / Ip` est une référence physique, `β_T` n'est pas un paramètre monitoré)
+- Facteur de sécurité (simplifié) : `q95 = (5 × a² × κ × B_T) / (R₀ × Ip)` — dérivé de `Ip` et des constantes machine
 
 ## Modèle de génération de données
 
@@ -74,7 +95,7 @@ Score de risque composite à chaque tick, dominé par `fGW` :
 | Quench thermique (TQ) | 1-3 ms | `Te_core` chute ~90%, `Wmhd` s'effondre, spike `v_loop` |
 | Current quench + VDE | 50-150 ms | `Ip` chute à 0, `zcur` dérive |
 
-Après une disruption, le système revient à l'état nominal (nouveau pulse).
+Après une disruption, le système revient à l'état nominal via une rampe progressive (~500 ms simulés), avec un marqueur vertical "NEW PULSE" sur le graphe timeline. L'historique du graphe est continu (pas d'effacement).
 
 ### Vitesse de simulation
 
@@ -99,8 +120,8 @@ Historique horodaté des changements de niveau, scrollable.
 |---|---|---|---|
 | Ajuster injection de gaz (±) | Modifie `n_e` → `fGW` | `↑` / `↓` | ~10-50 ms simulés |
 | Ajuster puissance de chauffage (±) | Modifie `p_input` → `Te_core`, `Wmhd`, `beta_n` | `+` / `-` | ~10-50 ms simulés |
-| Déclencher SPI | Radie l'énergie thermique, monte la densité | `S` | ~10 ms simulé |
-| SCRAM (arrêt d'urgence) | Rampe de courant forcée | `X` | immédiat |
+| Déclencher SPI | `n_e` ×3, `Te_core` chute ~80%, `radiated_fraction` spike à 0.95, `v_loop` spike. Transforme une disruption non-contrôlée en disruption mitigée (forces réduites) | `S` | ~10 ms simulé |
+| SCRAM (arrêt d'urgence) | Rampe de `Ip` vers 0 en ~200 ms simulés. Arrêt propre, pas une disruption. Tous les paramètres convergent vers 0/nominal | `X` | immédiat |
 
 ## Layout TUI
 
@@ -173,3 +194,9 @@ iter-ation --mode interactive  # mode opérateur
 iter-ation --speed 1000        # vitesse ×1000
 iter-ation --speed 1           # temps réel
 ```
+
+## Hors scope v1
+
+- Sauvegarde/chargement de session
+- Export des données (CSV, JSON)
+- Replay d'une disruption passée
