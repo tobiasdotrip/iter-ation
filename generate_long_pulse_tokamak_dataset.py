@@ -53,24 +53,48 @@ beta_n      = gen_stable(1.8,   get_parameter("beta_n").effective_sigma, num_row
 zcur        = gen_stable(0.0,   get_parameter("zcur").effective_sigma, num_rows)
 p_input     = gen_stable(50.0,  get_parameter("p_input").effective_sigma, num_rows)
 
-# Add slow drift to density (the driver of the disruption)
-# n_e drifts upward over the pulse, approaching the Greenwald limit
-drift_start = 60_000   # drift begins at t=60s
-drift_end = 179_200     # disruption triggers at t=179.2s
-drift_window = drift_end - drift_start
-n_e[drift_start:drift_end] += np.linspace(0, 0.25, drift_window)
-# n_e goes from 0.9 → ~1.15, so fGW goes from 0.75 → ~0.96
+# ---------------------------------------------------------
+# 2b. WARNING & DANGER EPISODES before the final disruption
+#     Realistic: density drifts up, operator corrects, repeat
+# ---------------------------------------------------------
 
-# Correlations during stable phase:
-# n_e ↑ → radiated_fraction ↑
+# Episode 1 (t=30-45s): density bump → WARNING, then recovery
+ep1_start, ep1_peak, ep1_end = 30_000, 37_000, 45_000
+n_e[ep1_start:ep1_peak] += np.linspace(0, 0.18, ep1_peak - ep1_start)  # fGW ~0.90
+n_e[ep1_peak:ep1_end] += np.linspace(0.18, 0, ep1_end - ep1_peak)      # operator corrects
+
+# Episode 2 (t=70-90s): stronger bump → approaches DANGER, then recovery
+ep2_start, ep2_peak, ep2_end = 70_000, 80_000, 90_000
+n_e[ep2_start:ep2_peak] += np.linspace(0, 0.25, ep2_peak - ep2_start)  # fGW ~0.96
+n_e[ep2_peak:ep2_end] += np.linspace(0.25, 0, ep2_end - ep2_peak)
+
+# Episode 3 (t=110-125s): li spike → q95 drops → WARNING via stability
+ep3_start, ep3_peak, ep3_end = 110_000, 117_000, 125_000
+li[ep3_start:ep3_peak] += np.linspace(0, 0.4, ep3_peak - ep3_start)   # li → 1.25
+li[ep3_peak:ep3_end] += np.linspace(0.4, 0, ep3_end - ep3_peak)
+# n1_amplitude also rises during stability episode
+n1_amp[ep3_start:ep3_peak] += np.linspace(0, 0.6, ep3_peak - ep3_start)
+n1_amp[ep3_peak:ep3_end] += np.linspace(0.6, 0, ep3_end - ep3_peak)
+
+# Episode 4 (t=145-155s): radiation spike → WARNING
+ep4_start, ep4_peak, ep4_end = 145_000, 150_000, 155_000
+rad_frac[ep4_start:ep4_peak] += np.linspace(0, 0.25, ep4_peak - ep4_start)  # rad → 0.75
+rad_frac[ep4_peak:ep4_end] += np.linspace(0.25, 0, ep4_end - ep4_peak)
+
+# Final drift (t=160-179.2s): density climbs for real this time → disruption
+drift_start = 160_000
+drift_end = 179_200
+drift_window = drift_end - drift_start
+n_e[drift_start:drift_end] += np.linspace(0, 0.30, drift_window)
+# n_e → ~1.20, fGW → ~1.01 → triggers disruption
+
+# Correlations (weak coupling, sequential not simultaneous)
 n_e_delta = (n_e - 0.9) / 0.9
-rad_frac += n_e_delta * 0.15  # coupling factor
-# radiated_fraction ↑ → Te_core ↓
+rad_frac += n_e_delta * 0.10
 rad_delta = (rad_frac - 0.5) / 0.5
-Te_core += rad_delta * (-0.4) * 20.0  # ~-8 keV at max radiation
-# Te_core ↓ → Wmhd ↓
+Te_core += rad_delta * (-0.15) * 20.0
 te_delta = (Te_core - 20.0) / 20.0
-Wmhd += te_delta * 0.5 * 350.0
+Wmhd += te_delta * 0.2 * 350.0
 
 # ---------------------------------------------------------
 # 3. THE DISRUPTION (t=179.2s to t=180.0s = 800 ms)
