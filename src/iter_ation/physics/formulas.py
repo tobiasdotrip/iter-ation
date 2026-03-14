@@ -12,15 +12,21 @@ def greenwald_fraction(n_e: float, Ip: float, a: float) -> float:
 
 
 def q95(
-    a: float, kappa: float, B_T: float, R_0: float, Ip: float,
-    li: float = 0.85, li_ref: float = 0.85,
+    Ip: float,
+    li: float = 0.85,
+    Ip_ref: float = 15.0,
+    li_ref: float = 0.85,
+    q95_ref: float = 3.1,
 ) -> float:
-    """Safety factor at 95% flux surface, corrected by internal inductance.
+    """Safety factor at 95% flux surface, scaled from ITER reference.
 
-    q95 = (5 * a^2 * kappa * B_T) / (R_0 * Ip) * (li_ref / li)
+    q95 = q95_ref * (Ip_ref / Ip) * (li_ref / li)
 
-    When li increases above li_ref (current profile peaks), q95 drops —
-    simulating approach toward q=2 resonance surface even at constant Ip.
+    The simplified cylindrical formula (5a^2*kappa*B_T)/(R_0*Ip) gives ~1.94
+    for ITER due to missing shape corrections (triangularity, etc.).
+    Instead we calibrate on ITER's known q95 ~ 3.1 at Ip=15 MA, li=0.85.
+
+    Scaling: q95 ∝ 1/Ip (more current = lower q) and q95 ∝ 1/li
+    (peaked current profile = lower edge q, approaching q=2 resonance).
     """
-    q_cyl = (5.0 * a**2 * kappa * B_T) / (R_0 * Ip)
-    return q_cyl * (li_ref / li)
+    return q95_ref * (Ip_ref / Ip) * (li_ref / li)
