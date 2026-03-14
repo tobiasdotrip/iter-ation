@@ -1,34 +1,53 @@
 # ITER-ation
 
-**ITER-ation** is an AI-powered control system for nuclear fusion. It monitors the plasma inside a Tokamak and prevents accidents using Google's **Gemini 3**.
+**ITER-ation** is an AI-powered disruption monitor for nuclear fusion reactors. It simulates and monitors the plasma inside a Tokamak in real time, using **Google Gemini** as an autonomous operator to prevent disruptions.
+
+Built during the **Google Antigravity Hackathon**.
 
 ## The Problem
-In a fusion reactor, the plasma can become unstable in milliseconds. Humans are too slow to react. Traditional software is too rigid.
+
+In a fusion reactor, the plasma can become unstable in milliseconds. Humans are too slow to react. Traditional control software is too rigid to handle the complexity of plasma dynamics.
 
 ## Our Solution: The Agentic Loop
-We built a "Smart Supervisor" that:
-1. **Watches:** It looks at plasma data (Density, Current, Graphs).
-2. **Thinks:** It uses Gemini 3 to understand if the plasma is reaching a dangerous limit.
-3. **Acts:** It sends a command to a fast **C++ module** to adjust the magnets and save the reactor.
 
-## Physics Power
-Our system uses real data scale from **ITER** (the world's largest fusion project):
+We built an autonomous AI operator that runs in a continuous loop:
+
+1. **Watch** — A physics engine generates realistic plasma data (density, current, temperature, radial profiles) based on ITER-scale parameters.
+2. **Think** — Gemini analyzes the plasma state, evaluates proximity to stability limits (Greenwald, beta, q-profile), and decides on corrective actions.
+3. **Act** — The AI sends control commands (adjust heating power, modify magnetic field, trigger emergency shutdown) that feed back into the simulation.
+
+## Physics
+
+The simulation uses real parameters from **ITER**, the world's largest fusion project:
+
 - **Major Radius:** 6.2 m
 - **Minor Radius:** 2.0 m
 - **Magnetic Field:** 5.3 T
 
-We track the **Greenwald Limit** ($n_G = I_p / \pi a^2$). If the density gets too high (above 80%), the AI triggers an emergency correction.
+Key stability limits tracked:
+- **Greenwald Limit** — density ceiling based on plasma current ($n_G = I_p / \pi a^2$)
+- **Beta Limit** — ratio of plasma pressure to magnetic pressure
+- **Safety Factor (q)** — MHD stability threshold
 
 ## Tech Stack
-- **Brain:** Google Gemini 3
-- **Logic:** Google Antigravity
-- **Speed:** C++ (Actuator)
-- **Interface:** Streamlit (Python Dashboard)
+
+| Layer | Technology |
+|-------|-----------|
+| AI Operator | Google Gemini |
+| Terminal UI | Textual |
+| Charts | plotext |
+| Physics | numpy |
+| Platform | Google Antigravity |
 
 ## How to Run
-1. **Clone:** `git clone git@github.com:tobiasdotrip/iter-ation.git`
-2. **Install:** `pip install -r requirements.txt`
-3. **Launch:** `streamlit run app.py`
+
+```bash
+git clone git@github.com:tobiasdotrip/iter-ation.git
+cd iter-ation
+pip install -e .
+iter-ation
+```
 
 ## The Team
-Built by students from **42 Paris**. Combining Physics and Code to power the future.
+
+Built by 3 students from **42 Paris** and 1 student from **Oteria Cyber School**.
