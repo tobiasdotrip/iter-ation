@@ -187,13 +187,13 @@ alert_level = np.zeros(num_rows, dtype=int)
 for i in range(num_rows):
     level = 0
 
-    # Greenwald fraction thresholds (central metric)
+    # Greenwald fraction (central metric)
     if fGW[i] > 1.0:
         level = max(level, 2)
     elif fGW[i] > 0.85:
         level = max(level, 1)
 
-    # q95 thresholds
+    # q95
     if q95_arr[i] > 0 and q95_arr[i] < 2.0:
         level = max(level, 2)
     elif q95_arr[i] > 0 and q95_arr[i] < 2.5:
@@ -211,13 +211,13 @@ for i in range(num_rows):
     elif n1_amp[i] > 0.5:
         level = max(level, 1)
 
-    # li thresholds
+    # li
     if li[i] > 1.4:
         level = max(level, 2)
     elif li[i] > 1.2:
         level = max(level, 1)
 
-    # |zcur| thresholds
+    # |zcur|
     if abs(zcur[i]) > 0.2:
         level = max(level, 2)
     elif abs(zcur[i]) > 0.1:
@@ -226,6 +226,38 @@ for i in range(num_rows):
     # v_loop spike
     if v_loop[i] > 1.0:
         level = max(level, 2)
+
+    # Te_core (drop % vs nominal 20 keV)
+    te_drop = (20.0 - Te_core[i]) / 20.0
+    if te_drop > 0.50:
+        level = max(level, 2)
+    elif te_drop > 0.30:
+        level = max(level, 1)
+
+    # Wmhd (drop % vs nominal 350 MJ)
+    wmhd_drop = (350.0 - Wmhd[i]) / 350.0
+    if wmhd_drop > 0.40:
+        level = max(level, 2)
+    elif wmhd_drop > 0.20:
+        level = max(level, 1)
+
+    # Ip (drop % vs nominal 15 MA)
+    ip_drop = (15.0 - ip_MA[i]) / 15.0
+    if ip_drop > 0.20:
+        level = max(level, 2)
+
+    # p_input (drop % vs nominal 50 MW)
+    p_drop = (50.0 - p_input[i]) / 50.0
+    if p_drop > 0.50:
+        level = max(level, 2)
+    elif p_drop > 0.30:
+        level = max(level, 1)
+
+    # beta_n
+    if beta_n[i] > 3.5:
+        level = max(level, 2)
+    elif beta_n[i] > 2.8:
+        level = max(level, 1)
 
     alert_level[i] = level
 
