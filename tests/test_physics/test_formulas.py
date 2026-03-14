@@ -24,8 +24,8 @@ def test_greenwald_fraction_at_limit():
 
 
 def test_q95_nominal():
-    """q95 = (5 * a^2 * kappa * B_T) / (R_0 * Ip)."""
-    q = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0)
+    """At nominal li (0.85), correction factor is 1.0."""
+    q = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0, li=0.85)
     expected = (5.0 * 4.0 * 1.7 * 5.3) / (6.2 * 15.0)
     assert abs(q - expected) < 1e-6
 
@@ -34,3 +34,19 @@ def test_q95_decreases_with_higher_ip():
     q_low = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=10.0)
     q_high = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=20.0)
     assert q_low > q_high
+
+
+def test_q95_decreases_with_higher_li():
+    """When li increases (peaked current), q95 drops toward q=2."""
+    q_nominal = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0, li=0.85)
+    q_peaked = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0, li=1.2)
+    assert q_peaked < q_nominal
+    # li=1.2 → q95 ≈ 3.1 * (0.85/1.2) ≈ 2.19
+    assert q_peaked < 2.5
+
+
+def test_q95_li_at_ref_equals_cylindrical():
+    """When li == li_ref, correction is exactly 1.0."""
+    q_with_li = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0, li=0.85, li_ref=0.85)
+    q_default = q95(a=ITER.a, kappa=ITER.kappa, B_T=ITER.B_T, R_0=ITER.R_0, Ip=15.0)
+    assert abs(q_with_li - q_default) < 1e-6

@@ -69,7 +69,7 @@ Les seuils "chute > X% vs nominal" comparent la valeur courante à la valeur nom
 
 - Greenwald density : `n_G [10²⁰ m⁻³] = Ip [MA] / (π × a² [m²])`
 - Beta normalisé : généré directement avec bruit + drift (la formule `β_n = β_T × a × B_T / Ip` est une référence physique, `β_T` n'est pas un paramètre monitoré)
-- Facteur de sécurité (simplifié) : `q95 = (5 × a² × κ × B_T) / (R₀ × Ip)` — dérivé de `Ip` et des constantes machine
+- Facteur de sécurité (corrigé par li) : `q95 = (5 × a² × κ × B_T) / (R₀ × Ip) × (li_ref / li)` — dérivé de `Ip` et `li`. Quand `li` augmente (profil de courant piqué), `q95` chute vers q=2 même si `Ip` est stable. `li_ref = 0.85` (nominal)
 
 ## Modèle de génération de données
 
