@@ -64,7 +64,7 @@ class PlasmaProfile(Widget):
             f"  n_G         {n_g:>9.3f} 1e20m\u207b\u00b3",
             f"  P_rad       {p_rad:>9.3f} MW",
             f"  P_net       {p_net:>9.3f} MW",
-            f"  P_fusion    {p_fusion:>9.1f} MW",
-            f"  [{q_color}]Q (gain)    {q_gain:>9.2f}[/]",
+            f"  P_fusion    {p_fusion:>9.3f} MW",
+            f"  [{q_color}]Q (gain)    {q_gain:>9.3f}[/]",
         ]
         return "\n".join(lines)

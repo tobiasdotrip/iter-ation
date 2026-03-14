@@ -57,8 +57,8 @@ class ProfilePlot(Widget):
         n_norm = (data["n_e_profile"] / n_max).tolist()
         t_norm = (data["Te_profile"] / t_max).tolist()
 
-        plt.plot(r, n_norm, label=f"n_e (peak={n_max:.2f})", color="cyan+")
-        plt.plot(r, t_norm, label=f"Te (peak={t_max:.1f}keV)", color="red+")
+        plt.plot(r, n_norm, label=f"n_e (peak={n_max:.3f})", color="cyan+")
+        plt.plot(r, t_norm, label=f"Te (peak={t_max:.3f}keV)", color="red+")
         plt.ylim(0, 1.1)
 
         canvas = plt.build()
