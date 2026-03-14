@@ -52,6 +52,7 @@ class SimulationEngine:
         self._drift: dict[str, float] = {p.name: 0.0 for p in GENERATED_PARAMS}
         self._current_state = PlasmaState.nominal()
         self._episode_index = 0
+        self._pressure_suppressed_until: float = 0.0  # sim time
 
     @property
     def current_state(self) -> PlasmaState:
@@ -62,8 +63,13 @@ class SimulationEngine:
         return self._cascade
 
     def apply_operator_adjustment(self, param_name: str, delta: float) -> None:
+        """Apply an operator action. Also suppresses pressure temporarily."""
         if param_name in self._base:
             self._base[param_name] += delta
+        # When AI acts on density, suppress pressure for 2 seconds (simulated)
+        # This gives the correction time to take visible effect
+        if param_name == "n_e" and delta < 0:
+            self._pressure_suppressed_until = self._sim_time + 2.0
 
     def _apply_density_pressure(self) -> None:
         """Apply scheduled density increases to push fGW toward limits.
@@ -95,7 +101,8 @@ class SimulationEngine:
         prev_phase = self._cascade.phase
 
         # 0. Density pressure (the challenge for the AI)
-        if not self._cascade.is_active:
+        #    Suppressed temporarily after AI corrective action
+        if not self._cascade.is_active and self._sim_time > self._pressure_suppressed_until:
             self._apply_density_pressure()
 
         # 1. Drift

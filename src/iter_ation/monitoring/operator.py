@@ -10,9 +10,10 @@ class OperatorAction(Enum):
     SCRAM = "scram"
 
 
+# Each action has a strong, visible impact on parameters
 ACTION_DELTAS: dict[OperatorAction, dict[str, float]] = {
-    OperatorAction.GAS_UP: {"n_e": 0.02},
-    OperatorAction.GAS_DOWN: {"n_e": -0.02},
-    OperatorAction.POWER_UP: {"p_input": 2.0},
-    OperatorAction.POWER_DOWN: {"p_input": -2.0},
+    OperatorAction.GAS_UP: {"n_e": 0.05},
+    OperatorAction.GAS_DOWN: {"n_e": -0.10},   # Strong reduction — visibly drops fGW
+    OperatorAction.POWER_UP: {"p_input": 5.0},
+    OperatorAction.POWER_DOWN: {"p_input": -5.0},
 }
