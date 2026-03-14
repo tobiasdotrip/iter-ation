@@ -14,9 +14,25 @@ from iter_ation.generator.disruption import (
 
 DT = 0.001  # 1 ms
 
+# Density pressure episodes: (start_time_s, duration_s, intensity)
+# intensity = n_e increase rate per second
+_PRESSURE_EPISODES = [
+    (20.0, 15.0, 0.015),   # gentle pressure at t=20s
+    (50.0, 20.0, 0.020),   # moderate at t=50s
+    (90.0, 15.0, 0.025),   # stronger at t=90s
+    (120.0, 20.0, 0.018),  # another moderate
+    (155.0, 25.0, 0.030),  # intense — will disrupt if uncorrected
+]
+
 
 class SimulationEngine:
-    """Tick-by-tick plasma simulation engine."""
+    """Tick-by-tick plasma simulation engine with density pressure episodes.
+
+    The engine periodically increases plasma density, pushing fGW toward
+    the Greenwald limit. The AI operator must respond with GAS_DOWN to
+    prevent disruptions. If uncorrected, fGW crosses thresholds and
+    eventually triggers a disruption cascade.
+    """
 
     def __init__(self, seed: int = 0) -> None:
         self._rng = np.random.default_rng(seed)
@@ -29,6 +45,7 @@ class SimulationEngine:
         }
         self._drift: dict[str, float] = {p.name: 0.0 for p in GENERATED_PARAMS}
         self._current_state = PlasmaState.nominal()
+        self._episode_index = 0
 
     @property
     def current_state(self) -> PlasmaState:
@@ -42,10 +59,38 @@ class SimulationEngine:
         if param_name in self._base:
             self._base[param_name] += delta
 
+    def _apply_density_pressure(self) -> None:
+        """Apply scheduled density increases to push fGW toward limits.
+
+        Each episode gradually raises n_e. The AI must counteract with
+        GAS_DOWN actions. The pressure modifies the base value directly
+        so it accumulates if uncorrected.
+        """
+        if self._episode_index >= len(_PRESSURE_EPISODES):
+            # After all episodes, continuous slow pressure
+            self._base["n_e"] += 0.008 * DT
+            return
+
+        start, duration, intensity = _PRESSURE_EPISODES[self._episode_index]
+
+        if self._sim_time < start:
+            return  # Not yet
+
+        if self._sim_time > start + duration:
+            self._episode_index += 1
+            return  # Episode over, move to next
+
+        # Active episode: increase density
+        self._base["n_e"] += intensity * DT
+
     def tick(self) -> PlasmaState:
         self._sim_time += DT
         self.new_pulse_triggered = False
         prev_phase = self._cascade.phase
+
+        # 0. Density pressure (the challenge for the AI)
+        if not self._cascade.is_active:
+            self._apply_density_pressure()
 
         # 1. Drift
         self._drift = apply_drift(self._drift, self._rng, DT)
@@ -86,7 +131,7 @@ class SimulationEngine:
         fgw = greenwald_fraction(noisy["n_e"], noisy["Ip"], ITER.a)
         q = q95(Ip=noisy["Ip"], li=noisy["li"])
 
-        # 9. Disruption risk check
+        # 9. Disruption risk check — only triggers when fGW is truly critical
         if not self._cascade.is_active:
             risk = compute_risk_score(
                 greenwald_fraction=fgw,
@@ -94,7 +139,8 @@ class SimulationEngine:
                 n1_amplitude=noisy["n1_amplitude"],
                 q95=q,
             )
-            if self._rng.random() < risk * DT * 10:
+            # Lower probability: disruption only when risk is very high
+            if risk > 0.5 and self._rng.random() < risk * DT * 2:
                 self._cascade.trigger()
 
         # 10. Build state
