@@ -178,15 +178,24 @@ class IterApp(App):
                     param_levels=param_levels,
                     sim_time=sim_time,
                 )
-                if reason:  # Got a response (action or NOOP with reason)
-                    self.post_message(AIDecision(action=action, reason=reason, sim_time=sim_time))
+                if reason:
                     if action is not None:
                         self._action_queue.put(action)
+                    # Use call_from_thread to safely update UI from daemon thread
+                    self.call_from_thread(self._display_ai_decision, action, reason, sim_time)
             finally:
                 self._ai_call_lock.release()
 
         thread = threading.Thread(target=_call, daemon=True)
         thread.start()
+
+    def _display_ai_decision(self, action: OperatorAction | None, reason: str, sim_time: float) -> None:
+        """Update AI panel from the main thread."""
+        ai_panel = self.query_one("#ai-log", AIPanel)
+        if action is not None:
+            ai_panel.log_action(sim_time, action.value.upper(), reason)
+        else:
+            ai_panel.write(f"[dim]t={sim_time:.3f}s[/] [dim]{reason}[/]")
 
     def on_plasma_update(self, event: PlasmaUpdate) -> None:
         # Header with status
@@ -234,15 +243,6 @@ class IterApp(App):
         entry = self._alert_log.update(event.sim_time, event.alert_level, event.param_levels)
         if entry:
             self.query_one("#alert-log", AlertLogWidget).add_alert(entry)
-
-    def on_ai_decision(self, event: AIDecision) -> None:
-        """Display AI decision in the AI panel."""
-        ai_panel = self.query_one("#ai-log", AIPanel)
-        if event.action is not None:
-            action_name = event.action.value.upper()
-            ai_panel.log_action(event.sim_time, action_name, event.reason)
-        else:
-            ai_panel.write(f"[dim]t={event.sim_time:.3f}s[/] [dim]{event.reason}[/]")
 
     def _handle_action(self, action: OperatorAction) -> None:
         engine = self._engine
