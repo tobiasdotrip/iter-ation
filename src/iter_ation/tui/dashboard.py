@@ -6,6 +6,7 @@ from iter_ation.tui.widgets.timeline import TimelineWidget
 from iter_ation.tui.widgets.alert_log import AlertLogWidget
 from iter_ation.tui.widgets.ai_panel import AIPanel
 from iter_ation.tui.widgets.param_section import ParamSection
+from iter_ation.tui.widgets.plasma_profile import PlasmaProfile
 
 
 class Dashboard(Static):
@@ -86,6 +87,7 @@ class Dashboard(Static):
                         ],
                         id="section-position",
                     )
+                    yield PlasmaProfile(id="plasma-profile")
 
         # Bottom area: alerts + AI panel side by side
         with Horizontal(id="bottom-area"):

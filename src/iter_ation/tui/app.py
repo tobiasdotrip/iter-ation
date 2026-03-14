@@ -21,6 +21,7 @@ from iter_ation.tui.widgets.alert_log import AlertLogWidget
 from iter_ation.tui.widgets.ai_panel import AIPanel
 from iter_ation.tui.widgets.controls import ControlsBar
 from iter_ation.tui.widgets.param_section import ParamSection
+from iter_ation.tui.widgets.plasma_profile import PlasmaProfile
 from iter_ation.tui.theme import COLORS
 
 _STATUS_DISPLAY = {
@@ -232,6 +233,12 @@ class IterApp(App):
                         )
             except Exception:
                 pass
+
+        # Plasma profile (derived quantities)
+        try:
+            self.query_one("#plasma-profile", PlasmaProfile).update_from_state(event.values)
+        except Exception:
+            pass
 
         # Timeline
         timeline = self.query_one("#timeline", TimelineWidget)
