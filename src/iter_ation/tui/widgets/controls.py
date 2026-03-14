@@ -13,20 +13,27 @@ class ControlsBar(Static):
     """
 
     interactive_mode: reactive[bool] = reactive(False)
+    ai_mode: reactive[bool] = reactive(False)
     paused: reactive[bool] = reactive(False)
 
     def render(self) -> str:
-        mode = "INTER" if self.interactive_mode else "OBS"
-        pause_str = " ▶ PAUSED" if self.paused else ""
+        if self.ai_mode:
+            mode = "[bold magenta]AI[/]"
+        elif self.interactive_mode:
+            mode = "[bold cyan]INTER[/]"
+        else:
+            mode = "[bold green]OBS[/]"
+
+        pause_str = " [bold yellow]PAUSED[/]" if self.paused else ""
 
         line1 = (
-            "[dim]\\[↑↓ Gas] [+- Power] [S SPI] [X SCRAM][/]"
+            "[dim]\\[Up/Down Gas] [+/- Power] [S SPI] [X SCRAM][/]"
             if self.interactive_mode
-            else "[dim]Controls disabled in OBS mode[/]"
+            else "[dim]Controls disabled -- switch to Interactive mode[/]"
         )
         line2 = (
-            f"[dim]\\[O] Observation  \\[I] Interactive  "
+            f"[dim]\\[O] Obs  \\[I] Inter  \\[A] AI  "
             f"\\[P] Pause  \\[Q] Quit[/]  "
-            f"Mode: [bold]{mode}[/]{pause_str}"
+            f"Mode: {mode}{pause_str}"
         )
         return f"{line1}\n{line2}"

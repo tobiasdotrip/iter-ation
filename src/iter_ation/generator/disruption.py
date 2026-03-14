@@ -93,16 +93,21 @@ class DisruptionCascade:
         """
         mods: dict[str, float] = {}
         if self.phase == DisruptionPhase.PRECURSORS:
+            progress = self._phase_duration / self._precursor_duration
             growth = math.exp(10.0 * self._phase_duration)
             mods["n1_amplitude"] = growth
-            mods["radiated_fraction_add"] = 0.3 * (self._phase_duration / self._precursor_duration)
-            mods["li_add"] = 0.2 * (self._phase_duration / self._precursor_duration)
+            mods["radiated_fraction_add"] = 0.3 * progress
+            mods["li_add"] = 0.2 * progress
+            # v_loop spikes in late precursors as plasma resistance rises
+            # (the system pushes voltage to maintain Ip before it collapses)
+            if progress > 0.7:
+                late_progress = (progress - 0.7) / 0.3
+                mods["v_loop_add"] = 2.0 * late_progress
 
         elif self.phase == DisruptionPhase.THERMAL_QUENCH:
             progress = min(self._phase_duration / self._tq_duration, 1.0)
             mods["Te_core"] = max(1.0 - 0.9 * progress, 0.1)
             mods["Wmhd"] = max(1.0 - 0.9 * progress, 0.1)
-            mods["v_loop_add"] = 2.0 * progress
 
         elif self.phase == DisruptionPhase.CURRENT_QUENCH:
             progress = min(self._phase_duration / self._cq_duration, 1.0)

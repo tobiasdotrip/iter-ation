@@ -1,43 +1,97 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
-from iter_ation.physics.parameters import PARAMETERS
 from iter_ation.tui.widgets.gauge import Gauge
 from iter_ation.tui.widgets.timeline import TimelineWidget
 from iter_ation.tui.widgets.alert_log import AlertLogWidget
-
-_GAUGE_RANGES: dict[str, tuple[float, float]] = {
-    "greenwald_fraction": (0.0, 1.5),
-    "n_e": (0.0, 2.0),
-    "Ip": (0.0, 20.0),
-    "q95": (0.0, 6.0),
-    "Te_core": (0.0, 30.0),
-    "Wmhd": (0.0, 500.0),
-    "radiated_fraction": (0.0, 1.0),
-    "li": (0.0, 2.0),
-    "n1_amplitude": (0.0, 2.0),
-    "v_loop": (0.0, 3.0),
-    "beta_n": (0.0, 5.0),
-    "zcur": (-0.5, 0.5),
-    "p_input": (0.0, 80.0),
-}
+from iter_ation.tui.widgets.ai_panel import AIPanel
+from iter_ation.tui.widgets.param_section import ParamSection
 
 
 class Dashboard(Static):
     DEFAULT_CSS = """
     Dashboard { height: 1fr; width: 1fr; }
+    #main-area { height: 1fr; }
+    #timeline { width: 1fr; min-width: 40; }
+    #right-panel { width: 38; min-width: 38; }
+    #key-metrics { height: auto; padding: 0 1; }
+    #params-scroll { height: 1fr; }
+    #bottom-area { height: 8; }
+    #alerts-panel { width: 1fr; }
+    #ai-panel { width: 1fr; }
+    .section-title { height: 1; padding: 0 1; }
     """
 
     def compose(self) -> ComposeResult:
-        with Horizontal():
+        # Main area: timeline left, panels right
+        with Horizontal(id="main-area"):
             yield TimelineWidget(id="timeline")
+
             with Vertical(id="right-panel"):
-                with Vertical(id="gauges"):
-                    for p in PARAMETERS:
-                        min_v, max_v = _GAUGE_RANGES.get(p.name, (0.0, 1.0))
-                        yield Gauge(
-                            label=p.name[:8], unit=p.unit,
-                            min_val=min_v, max_val=max_v,
-                            id=f"gauge-{p.name}",
-                        )
+                # Key metrics with gauges
+                yield Static(
+                    f"[bold #00b4d8]── KEY METRICS ──[/]",
+                    classes="section-title",
+                )
+                with Vertical(id="key-metrics"):
+                    yield Gauge(
+                        label="fGW", unit="",
+                        min_val=0.0, max_val=1.5,
+                        id="gauge-greenwald_fraction",
+                    )
+                    yield Gauge(
+                        label="beta_n", unit="",
+                        min_val=0.0, max_val=5.0,
+                        id="gauge-beta_n",
+                    )
+                    yield Gauge(
+                        label="q95", unit="",
+                        min_val=0.0, max_val=6.0,
+                        id="gauge-q95",
+                    )
+
+                # Parameter sections
+                with Vertical(id="params-scroll"):
+                    yield ParamSection(
+                        title="DENSITY",
+                        params=[
+                            ("n_e", "n_e", "1e20m\u207b\u00b3"),
+                            ("Ip", "Ip", "MA"),
+                            ("radiated_fraction", "rad_frac", ""),
+                        ],
+                        id="section-density",
+                    )
+                    yield ParamSection(
+                        title="STABILITY",
+                        params=[
+                            ("li", "li", ""),
+                            ("n1_amplitude", "n1_amp", "mT"),
+                        ],
+                        id="section-stability",
+                    )
+                    yield ParamSection(
+                        title="THERMAL",
+                        params=[
+                            ("Te_core", "Te_core", "keV"),
+                            ("Wmhd", "Wmhd", "MJ"),
+                            ("v_loop", "v_loop", "V"),
+                        ],
+                        id="section-thermal",
+                    )
+                    yield ParamSection(
+                        title="POSITION & POWER",
+                        params=[
+                            ("zcur", "zcur", "m"),
+                            ("p_input", "p_input", "MW"),
+                        ],
+                        id="section-position",
+                    )
+
+        # Bottom area: alerts + AI panel side by side
+        with Horizontal(id="bottom-area"):
+            with Vertical(id="alerts-panel"):
+                yield Static("[bold #00b4d8]── ALERTS ──[/]", classes="section-title")
                 yield AlertLogWidget(id="alert-log")
+            with Vertical(id="ai-panel"):
+                yield Static("[bold #00b4d8]── AI OPERATOR ──[/]", classes="section-title")
+                yield AIPanel(id="ai-log")

@@ -17,6 +17,15 @@ from iter_ation.tui.widgets.gauge import Gauge
 from iter_ation.tui.widgets.timeline import TimelineWidget
 from iter_ation.tui.widgets.alert_log import AlertLogWidget
 from iter_ation.tui.widgets.controls import ControlsBar
+from iter_ation.tui.widgets.param_section import ParamSection
+from iter_ation.tui.theme import COLORS
+
+_STATUS_DISPLAY = {
+    AlertLevel.NOMINAL: f"[bold {COLORS['nominal']}]● NOMINAL[/]",
+    AlertLevel.WARNING: f"[bold {COLORS['warning']}]⚠ WARNING[/]",
+    AlertLevel.DANGER: f"[bold {COLORS['danger']}]✖ DANGER[/]",
+    AlertLevel.DISRUPTION: f"[bold {COLORS['disruption']} blink]◉ DISRUPTION[/]",
+}
 
 
 class PlasmaUpdate(Message):
@@ -35,12 +44,14 @@ class IterApp(App):
     """ITER-ATION Disruption Monitor."""
 
     CSS = """
-    Screen { background: #1a1a2e; }
-    #header-bar { dock: top; height: 1; background: #16213e; color: #e0e0e0; text-align: center; }
-    #right-panel { width: 40; }
-    #gauges { height: 2fr; }
-    #timeline { width: 1fr; }
-    #alert-log { height: 1fr; }
+    Screen { background: #1a1a2e; color: #e0e0e0; }
+    #header-bar {
+        dock: top;
+        height: 1;
+        background: #16213e;
+        color: #e0e0e0;
+        padding: 0 2;
+    }
     """
 
     BINDINGS = [
@@ -48,6 +59,7 @@ class IterApp(App):
         ("p", "toggle_pause", "Pause"),
         ("o", "mode_observation", "Observation"),
         ("i", "mode_interactive", "Interactive"),
+        ("a", "mode_ai", "AI"),
         ("up", "gas_up", "Gas +"),
         ("down", "gas_down", "Gas -"),
         ("+", "power_up", "Power +"),
@@ -60,6 +72,7 @@ class IterApp(App):
         super().__init__()
         self._speed = speed
         self._interactive = interactive
+        self._ai_mode = False
         self._paused = False
         self._action_queue: queue.Queue[OperatorAction] = queue.Queue()
         self._alert_log = AlertLog()
@@ -67,7 +80,7 @@ class IterApp(App):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            f"ITER-ATION -- Disruption Monitor    t=0.000s  x{self._speed}",
+            f"ITER-ATION -- Disruption Monitor    t=0.000s  x{self._speed}    {_STATUS_DISPLAY[AlertLevel.NOMINAL]}",
             id="header-bar",
         )
         yield Dashboard()
@@ -78,6 +91,11 @@ class IterApp(App):
         timeline.add_series("greenwald_fraction")
         timeline.add_series("radiated_fraction")
         timeline.add_series("q95")
+
+        # Add threshold lines for fGW
+        timeline.add_threshold(0.85, "yellow", "fGW WARNING")
+        timeline.add_threshold(1.0, "red", "fGW DANGER")
+
         self.query_one("#controls", ControlsBar).interactive_mode = self._interactive
         self._run_simulation()
 
@@ -117,23 +135,48 @@ class IterApp(App):
             time.sleep(frame_interval)
 
     def on_plasma_update(self, event: PlasmaUpdate) -> None:
+        # Header with status
+        status = _STATUS_DISPLAY.get(event.alert_level, _STATUS_DISPLAY[AlertLevel.NOMINAL])
         self.query_one("#header-bar", Static).update(
-            f"ITER-ATION -- Disruption Monitor    t={event.sim_time:.3f}s  x{self._speed}"
+            f"ITER-ATION -- Disruption Monitor    "
+            f"t={event.sim_time:.3f}s  x{self._speed}    {status}"
         )
 
-        for name, value in event.values.items():
+        # Key metric gauges
+        for name in ("greenwald_fraction", "beta_n", "q95"):
+            if name in event.values:
+                try:
+                    gauge = self.query_one(f"#gauge-{name}", Gauge)
+                    gauge.update_value(event.values[name], event.param_levels.get(name, AlertLevel.NOMINAL))
+                except Exception:
+                    pass
+
+        # Parameter sections
+        section_params = {
+            "section-density": ["n_e", "Ip", "radiated_fraction"],
+            "section-stability": ["li", "n1_amplitude"],
+            "section-thermal": ["Te_core", "Wmhd", "v_loop"],
+            "section-position": ["zcur", "p_input"],
+        }
+        for section_id, params in section_params.items():
             try:
-                gauge = self.query_one(f"#gauge-{name}", Gauge)
-                gauge.update_value(value, event.param_levels.get(name, AlertLevel.NOMINAL))
+                section = self.query_one(f"#{section_id}", ParamSection)
+                for name in params:
+                    if name in event.values:
+                        section.update_param(
+                            name, event.values[name],
+                            event.param_levels.get(name, AlertLevel.NOMINAL),
+                        )
             except Exception:
                 pass
 
+        # Timeline
         timeline = self.query_one("#timeline", TimelineWidget)
         timeline.push(event.sim_time, event.values)
-
         if event.new_pulse:
             timeline.mark_pulse(event.sim_time)
 
+        # Alerts
         entry = self._alert_log.update(event.sim_time, event.alert_level, event.param_levels)
         if entry:
             self.query_one("#alert-log", AlertLogWidget).add_alert(entry)
@@ -157,11 +200,24 @@ class IterApp(App):
 
     def action_mode_observation(self) -> None:
         self._interactive = False
-        self.query_one("#controls", ControlsBar).interactive_mode = False
+        self._ai_mode = False
+        controls = self.query_one("#controls", ControlsBar)
+        controls.interactive_mode = False
+        controls.ai_mode = False
 
     def action_mode_interactive(self) -> None:
         self._interactive = True
-        self.query_one("#controls", ControlsBar).interactive_mode = True
+        self._ai_mode = False
+        controls = self.query_one("#controls", ControlsBar)
+        controls.interactive_mode = True
+        controls.ai_mode = False
+
+    def action_mode_ai(self) -> None:
+        self._interactive = False
+        self._ai_mode = True
+        controls = self.query_one("#controls", ControlsBar)
+        controls.interactive_mode = False
+        controls.ai_mode = True
 
     def action_gas_up(self) -> None:
         if self._interactive:
