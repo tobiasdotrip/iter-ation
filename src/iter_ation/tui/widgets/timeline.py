@@ -58,14 +58,20 @@ class TimelineWidget(Widget):
         plt.xaxes(1, 0)
         plt.yaxes(1, 0)
         plt.title("Greenwald Fraction (fGW)")
-        plt.ylim(0.0, 1.3)
 
         times = list(self._times)
 
-        # Plot only fGW as the hero metric
+        # Plot fGW as the hero metric
         if "greenwald_fraction" in self._series:
             data = list(self._series["greenwald_fraction"])
             plt.plot(times[:len(data)], data, label="fGW", color="cyan+")
+
+            # Dynamic Y-axis: zoom on the action zone with padding
+            if data:
+                y_min = min(data)
+                y_max = max(data)
+                margin = max((y_max - y_min) * 0.3, 0.05)
+                plt.ylim(max(0, y_min - margin), min(1.5, y_max + margin))
 
         # Threshold lines
         for value, color, label in self._thresholds:
