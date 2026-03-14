@@ -1,6 +1,7 @@
 from __future__ import annotations
 import queue
 import time
+import threading
 from textual import work
 from textual.app import App, ComposeResult
 from textual.widgets import Static
@@ -12,10 +13,12 @@ from iter_ation.generator.disruption import DisruptionPhase
 from iter_ation.monitoring.thresholds import evaluate_parameter, evaluate_all, AlertLevel
 from iter_ation.monitoring.alerts import AlertLog
 from iter_ation.monitoring.operator import OperatorAction, ACTION_DELTAS
+from iter_ation.agent.operator_ai import OperatorAI
 from iter_ation.tui.dashboard import Dashboard
 from iter_ation.tui.widgets.gauge import Gauge
 from iter_ation.tui.widgets.timeline import TimelineWidget
 from iter_ation.tui.widgets.alert_log import AlertLogWidget
+from iter_ation.tui.widgets.ai_panel import AIPanel
 from iter_ation.tui.widgets.controls import ControlsBar
 from iter_ation.tui.widgets.param_section import ParamSection
 from iter_ation.tui.theme import COLORS
@@ -38,6 +41,15 @@ class PlasmaUpdate(Message):
         self.alert_level = alert_level
         self.param_levels = param_levels
         self.new_pulse = new_pulse
+
+
+class AIDecision(Message):
+    """Posted when the AI agent makes a decision."""
+    def __init__(self, action: OperatorAction | None, reason: str, sim_time: float) -> None:
+        super().__init__()
+        self.action = action
+        self.reason = reason
+        self.sim_time = sim_time
 
 
 class IterApp(App):
@@ -72,11 +84,13 @@ class IterApp(App):
         super().__init__()
         self._speed = speed
         self._interactive = interactive
-        self._ai_mode = False
+        self._ai_mode = not interactive  # AI mode by default
         self._paused = False
         self._action_queue: queue.Queue[OperatorAction] = queue.Queue()
         self._alert_log = AlertLog()
         self._engine = SimulationEngine()
+        self._operator_ai = OperatorAI()
+        self._ai_call_lock = threading.Lock()
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -92,7 +106,19 @@ class IterApp(App):
         timeline.add_threshold(0.85, "yellow", "WARNING 0.85")
         timeline.add_threshold(1.0, "red", "DANGER 1.0")
 
-        self.query_one("#controls", ControlsBar).interactive_mode = self._interactive
+        controls = self.query_one("#controls", ControlsBar)
+        controls.interactive_mode = self._interactive
+        controls.ai_mode = self._ai_mode
+
+        # Show AI status on mount
+        ai_panel = self.query_one("#ai-log", AIPanel)
+        if self._operator_ai.is_available:
+            ai_panel.write("[green]AI agent ready — monitoring[/]")
+        else:
+            ai_panel.write("[red]No GEMINI_API_KEY in .env — AI disabled[/]")
+            self._ai_mode = False
+            controls.ai_mode = False
+
         self._run_simulation()
 
     @work(thread=True)
@@ -106,6 +132,7 @@ class IterApp(App):
                 time.sleep(0.05)
                 continue
 
+            # Process operator actions (manual or AI)
             while not self._action_queue.empty():
                 self._handle_action(self._action_queue.get_nowait())
 
@@ -128,7 +155,38 @@ class IterApp(App):
                 alert_level=overall, param_levels=param_levels,
                 new_pulse=new_pulse,
             ))
+
+            # AI agent evaluation (non-blocking)
+            if self._ai_mode and self._operator_ai.is_available:
+                self._evaluate_ai(values, overall, param_levels, state.sim_time)
+
             time.sleep(frame_interval)
+
+    def _evaluate_ai(
+        self, values: dict[str, float], alert_level: AlertLevel,
+        param_levels: dict[str, AlertLevel], sim_time: float,
+    ) -> None:
+        """Call AI agent in a separate thread to avoid blocking simulation."""
+        if not self._ai_call_lock.acquire(blocking=False):
+            return  # Another AI call is in progress
+
+        def _call():
+            try:
+                action, reason = self._operator_ai.evaluate(
+                    values=values,
+                    alert_level=alert_level,
+                    param_levels=param_levels,
+                    sim_time=sim_time,
+                )
+                if reason:  # Got a response (action or NOOP with reason)
+                    self.post_message(AIDecision(action=action, reason=reason, sim_time=sim_time))
+                    if action is not None:
+                        self._action_queue.put(action)
+            finally:
+                self._ai_call_lock.release()
+
+        thread = threading.Thread(target=_call, daemon=True)
+        thread.start()
 
     def on_plasma_update(self, event: PlasmaUpdate) -> None:
         # Header with status
@@ -176,6 +234,15 @@ class IterApp(App):
         entry = self._alert_log.update(event.sim_time, event.alert_level, event.param_levels)
         if entry:
             self.query_one("#alert-log", AlertLogWidget).add_alert(entry)
+
+    def on_ai_decision(self, event: AIDecision) -> None:
+        """Display AI decision in the AI panel."""
+        ai_panel = self.query_one("#ai-log", AIPanel)
+        if event.action is not None:
+            action_name = event.action.value.upper()
+            ai_panel.log_action(event.sim_time, action_name, event.reason)
+        else:
+            ai_panel.write(f"[dim]t={event.sim_time:.3f}s[/] [dim]{event.reason}[/]")
 
     def _handle_action(self, action: OperatorAction) -> None:
         engine = self._engine
