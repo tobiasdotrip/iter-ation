@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "iter-ation"
+version = "0.1.0"
+description = "Tokamak disruption monitor TUI"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=1.0.0",
+    "plotext>=5.3.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[project.scripts]
+iter-ation = "iter_ation.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/iter_ation"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
